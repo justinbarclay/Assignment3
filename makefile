@@ -17,7 +17,7 @@ testg: Test.C Grid.C Grid.H
 	$(CC) Test.C Grid.C -lglut -lGLEW -lGL -lGLU -lX11 -L/usr/lib/nvidia-340 -Wno-write-strings -o ./testg
 
 apple: TestGrid.C Grid.C Grid.H
-	$(CC) -o $@ $^ -framework OpenGL -framework GLUT -Wno-write-strings -v
+	$(CC) TestGrid.C Grid.C -framework OpenGL -framework GLUT -Wno-write-strings -v
 tar:
 	rm -f *~ a2.tar
 	tar cf a2.tar *

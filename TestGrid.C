@@ -15,8 +15,10 @@
 // Allow it to compile once Apple
 #ifdef __APPLE__
 #include <GLUT/glut.h>
+//#include <GLUT/freeglut.h>
 #else
 #include <GL/glut.h>
+#include <GL/freeglut.h>
 #endif
 
 
@@ -25,7 +27,6 @@
 #include <iostream>
 #include <fstream>
 #include <memory>
-#include <GL/freeglut.h>
 #include "Grid.H"
 
 using namespace std;
