@@ -1,6 +1,6 @@
 
 #include "Grid.H"
-#include <iostream>
+
 using Position = std::pair<int, int>;
 using fScore = std::pair< Position, double>;
 
@@ -12,7 +12,7 @@ using fScore = std::pair< Position, double>;
 struct fScoreCompare {
     bool operator()(const fScore& l, const std::pair<std::pair<int, int>, double>& r)  
     {  
-        return l.second > r.second;  
+        return l.second < r.second;  
     } 
 };
 
@@ -82,62 +82,73 @@ private:
 // (>100*sqrt(2) => air distance is admissible)
 
 // methods
-void Grid::floodFillInit(int size, int x, int y) const{
-    // Generate key for map
-   
-    std::string key = "";
-    key += std::to_string(size) + "x" + std::to_string(x) + "y" + std::to_string(y);
-    std::map<std::string, int>::const_iterator groupIter = travelCache.find(key);   
-  
-    if(x < 0 || x >= this->_width){
-        // Bounds check for x
-        return;
-    } else if(y < 0 || y >= this->_height){
-        // Bounds check for y
-        return;
-    } else if(groupIter != travelCache.end()){
-        return;
-    } else if(!canFit(size, x, y)){
-        return;
-    }else {
-        _tileGroup += 1;
-        int newGroup =  _tileGroup;
-        Tile tile = getTile(x, y);
-        floodFill(size, x, y, newGroup, tile);
+bool Grid::canFloodFill(int size, int x1, int y1, int x2, int y2)const{
+
+    // Currently can't cache all visited nodes and track whether they lead
+    // to the target, would have to recursively floodfill for that to happen
+    std::vector< std::pair<int,int> > queue;
+    static std::set< std::pair<int,int> > visited;
+    
+    Grid::Tile currentType = getTile(x1,y1);
+    
+    if(getTile(x1,y1) != getTile(x2, y2)){
+        // If the current tile we're visiting does not match our type, we've
+        // reached a dead end
+        visited.clear();
+        return false;
     }
+    
+    // add node to queue
+    queue.push_back(std::make_pair(x1, y1));
+    while(!queue.empty()){
+        // Grab first element off stack
+        std::pair<int, int> currentNode = queue.back();
+        
+        // Delete it off the stack
+        queue.pop_back();
+        int x = currentNode.first; int y = currentNode.second;
+        
+        //Early exit
+        if(x == x2 && y == y2){
+        // If them node we're looking to visit is the same as the one we're
+        // currently visiting, we're done
+            visited.clear();
+            return true;
+        }
+        // Move tile west until a boundary is found
+        int w = x;
+        while(getTile(w, y) == currentType){
+            w--;
+        }
+        //Move tile east until a boundary is found
+        int e = x;
+        while(getTile(e, y) == currentType){
+            e++;
+        }
+
+        //Go through all nodes between east and west and add their them to the queue
+        for(int i=w; i<e; i++){
+            // Keep track of all visited nodes
+            visited.insert(std::pair<int,int>(i, y));
+
+            // Traverse node to north if it's the same type as our goal type
+            // and if we have not visited it before
+            if(visited.count(std::pair<int,int>(i, y+1)) == 0 && 
+               getTile(x,y+1) == getTile(x2, y2)){
+                queue.push_back(std::pair<int, int>(i, y+1));
+            }
+
+            // Traverse node to south if it's the same type as our goal type
+            // and if we have not visited it before
+            if(visited.count(std::pair<int,int>(i, y-1)) == 0 &&
+               getTile(x,y-1) == getTile(x2, y2)){
+                queue.push_back(std::pair<int, int>(i, y-1));
+            }
+        }
+    }
+    return false;
 }
 
-void Grid::floodFill(const int size, const int x, const int y, const int group, const Tile tile) const{
-    if(x < 0 || x >= this->_width){
-        // Bounds check for x
-        return;
-    } else if(y < 0 || y >= this->_height){
-        // Bounds check for y
-        return;
-    } else if(!canFit(size, x, y)){
-        return;
-    }
-
-    std::string key = "";
-    key += std::to_string(size) + "x" + std::to_string(x) + "y" + std::to_string(y);
-    std::map<std::string, int>::const_iterator groupIter = travelCache.find(key);
-
-    if(groupIter != travelCache.end()){
-        return;
-    } else if(getTile(x, y) != tile){
-        return;
-    } else{
-        travelCache[key] = group;
-        floodFill(size, x, y+1, group, tile);
-        // South 
-        floodFill(size, x, y-1, group, tile);
-        // East
-        floodFill(size, x+1, y, group, tile);
-        // West
-        floodFill(size, x-1, y, group, tile);
-    }
-
-}
 // Pathfinding operations
 
 // Return true iff object with a given size can reside on (x1, y1)
@@ -150,36 +161,29 @@ void Grid::floodFill(const int size, const int x, const int y, const int group, 
 // x1,y1,x2,y2 coordinates SHOULD BE MUCH FASTER. Hint: flood fill + caching
 bool Grid::isConnected(int size, int x1, int y1, int x2, int y2)const{
     // Build the key
-    std::string key1 = "";
-    key1 += std::to_string(size) + "x" + std::to_string(x1) + "y" + std::to_string(y1);
+    std::string key = "";
+    static std::map<std::string, bool> collisionCache;
+    key += std::to_string(size) + std::to_string(x1) + std::to_string(y1) + std::to_string(x2) + std::to_string(y2);
     
-    std::string key2 = "";
-    key2 += std::to_string(size) + "x" + std::to_string(x2) + "y" + std::to_string(y2);
-    
-    std::map<std::string, int>::const_iterator key1Iter = travelCache.find(key1);
-    if(key1Iter == travelCache.end()){
-        floodFillInit(size, x1, y1);
-    }
-    
-    key1Iter = travelCache.find(key1);
-    std::map<std::string, int>::const_iterator key2Iter = travelCache.find(key2);
-    
-    if(key1Iter != travelCache.end() && key2Iter != travelCache.end()){
-        return key1Iter->second == key2Iter->second;
-    } else{
-        return false;
-    }
+    std::map<std::string, bool>::const_iterator iter = collisionCache.find(key);
+
+    if(iter != collisionCache.end()){
+        return iter->second;
+    } else {
+        bool canFF = this->canFloodFill(size, x1, y1, x2, y2);
+        collisionCache.insert(std::pair<std::string, bool>(key, canFF));
+        return canFF;
+    };
 };
 
 
 Grid::Grid(int width, int height){
     _width = width;
     _height = height;
-    _tileGroup = 0;
 
     // Initialize all tiles to Blocked
     // It's set to blocked and not ground, for now atleast so that it ensures I
-    // // initialize it to something
+    // initialize it to something
     for(int i=0; i < _width; i++){
         tiles.push_back(std::vector<Tile>());
         for(int j=0; j < _height; j++){
@@ -214,7 +218,7 @@ int Grid::findShortestPath(int size, int x1, int y1, int x2, int y2,
     int totalCost = -1;
     // Starting node
     Position key = Position(x1, y1);
-    
+
     // Set of all visited nodes
     std::set< Position > visited;
     std::set< Position > unvisited;
@@ -227,69 +231,46 @@ int Grid::findShortestPath(int size, int x1, int y1, int x2, int y2,
     std::map< Position, double> gScore;
     gScore[key] =  0;
     
+    return 0;
     while(!fScoreQueue.empty()){
         fScore topNode = fScoreQueue.top();
         
         Position pos = topNode.first;
         if(pos.first == x2 && pos.second == y2){
-            std::cerr << "Done" << std::endl;
-            // for(auto a: cameFrom){
-            //     std::cerr << "Came from: " << a.first.first << " " << a.first.second <<std::endl;
-            //     std::cerr << "Went to: " << a.second.first << " " << a.second.second <<std::endl;
-            // }
-            // std::cerr << "Size of cameFrom: " << cameFrom.size() << std::endl;
-            std::vector<Direction> _path = reconstructPath(cameFrom, pos);
-            // std::cerr << "Test " << std::endl;
-            path = _path;
-            totalCost = calculateCost(path);
-            std::cerr << "Total Cost " << totalCost << std::endl;
-            return totalCost;
+            path = reconstructPath(cameFrom, pos);
+            return calculateCost(path);
         }
 
         fScoreQueue.pop();
-        visited.insert(pos);
-        // std::cerr << "Current: " << pos.first << " " << pos.second <<std::endl;
+        visited.insert(topNode.first);
+
         //Generate all neighbours
-        GenNeighbour generator(pos);
+        GenNeighbour generator(topNode.first);
         for(int i=0; i< 8; i++){
             Position neighbour = generator.next();
-            // std::cerr << "Neighbour " << neighbour.first <<" " << neighbour.second << std::endl;
             // If we've all ready visited this neighbour, skip it
             if(visited.count(neighbour) > 0){
                 continue;
             }
 
-            if(pos.first<0 || pos.first>= this->_width){
-                break;
-            }
-            if(pos.second<0 || pos.second>= this->_height){
-                break;
-            }
-            if(neighbour.first<0 || neighbour.first>= this->_width){
-                break;
-            }
-            if(neighbour.second<0 || neighbour.second>= this->_height){
-                break;
-            }
             // If the two tile are not the same skip
-            if(getTile(neighbour.first, neighbour.second) != getTile(pos.first, pos.second)){
+            if(this->getTile(neighbour.first, neighbour.second) == this->getTile(pos.first, pos.second)){
                 continue;
             }
-            double neighbourGScore = gScore[pos] + this->rectDistance(pos.first, pos.second, neighbour.first, neighbour.second );
+            
+            double tentativeGscore = gScore[topNode.first] + this->rectDistance(pos.first, pos.second, neighbour.first, neighbour.second );
             if(unvisited.count(neighbour) == 0){
                 unvisited.insert(neighbour);
-            } else if(neighbourGScore >= gScore[neighbour]){
+            } else if(tentativeGscore >= gScore[neighbour]){
                 // This is not the best path
                 continue;
             }
             // Record this new best path
             cameFrom[neighbour] = pos;
-            gScore[neighbour] = neighbourGScore;
-            fScoreQueue.push(fScore(neighbour, neighbourGScore + this->rectDistance(neighbour.first, neighbour.second, x2, y2)));
+            gScore[neighbour] = tentativeGscore;
+            fScoreQueue.push(fScore(neighbour, tentativeGscore + this->rectDistance(neighbour.first, neighbour.second, x2, y2)));
         }
     }
-    
-    std::cerr << "Total Cost " << totalCost << std::endl;
     return totalCost;
 };
     
@@ -304,22 +285,10 @@ double Grid::rectDistance(int x1, int y1, int x2, int y2) const{
 
 std::vector<Grid::Direction> Grid::reconstructPath(std::map< Position, Position > cameFrom, Position current) const{
     std::vector<Grid::Direction> path;
-    std::vector< Position > totalPath;
-    if(cameFrom.size() == 0){
-        return path;
-    }
-    totalPath.push_back(current);
-    while(cameFrom.count(current) > 0){
+    path.push_back(getDirection(cameFrom[current], current));
+    while(cameFrom.find(current) != cameFrom.end()){
         current = cameFrom[current];
-        totalPath.push_back(current);
-    }
-    for(auto a: totalPath){
-        std::cerr << a.first << " " << a.second << std::endl;
-    }
-    std::vector< Position >::reverse_iterator rBegin = totalPath.rbegin(); 
-    std::vector< Position >::reverse_iterator rEnd = totalPath.rend();
-    for(; rBegin+1 != rEnd; rBegin++){
-        path.push_back( getDirection(*rBegin, *(rBegin+1)));
+        path.push_back(getDirection(cameFrom[current], current));
     }
     return path;
 }
@@ -330,24 +299,21 @@ Grid::Direction Grid::getDirection(const Position current,const Position next) c
     } else if(next.first == current.first+1 && next.second == current.second + 1){
         return SE;
     } else if(next.first == current.first+1 && next.second == current.second - 1){
-        return NE;
+        return SE;
     } else if(next.first == current.first && next.second == current.second - 1){
         return N;
     } else if(next.first == current.first && next.second == current.second + 1){
         return S;
     } else if(next.first == current.first-1 && next.second == current.second + 1){
         return SW;
-    }else if(next.first == current.first-1 && next.second == current.second-1){
+    }else if(next.first == current.first-1 && next.second == current.second){
         return NW;
     }else if(next.first == current.first-1 && next.second == current.second){
         return W;   
     } else {
-        std::cerr << "Can't find direction" << std::endl;
-        std::cerr << current.first << " " << current.second << std::endl;
-        std::cerr << next.first << " " << next.second << std::endl;
-        // throw "Can't generate anymore neighbours";
+        throw "Can't generate anymore neighbours";
     }
-}
+};
 
 int Grid::calculateCost(const std::vector<Direction> path) const{
     int cost = 0;
@@ -361,24 +327,4 @@ int Grid::calculateCost(const std::vector<Direction> path) const{
         }
     }
     return cost;
-}
-
-bool Grid::canFit(int size, int x, int y) const{
-    Tile mainTile = getTile(x,y);
-    
-    if(x+size>= this->_width || x<0){
-        return false;
-    }  
-    if(y+size>= this->_height || y<0){
-        return false;
-    }
-
-    for(int i=0; i<= size; i++){
-        for(int j=0; j <= size; j++){
-            if(getTile(x+i, y+j) != mainTile){
-                return false;
-            } 
-        }
-    }
-    return true;
 }

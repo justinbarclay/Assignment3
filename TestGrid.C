@@ -15,7 +15,7 @@
 // Allow it to compile once Apple
 #ifdef __APPLE__
 #include <GLUT/glut.h>
-//#include <GLUT/freeglut.h>
+#include "/opt/local/include/GL/freeglut.h"
 #else
 #include <GL/glut.h>
 #include <GL/freeglut.h>
