@@ -72,13 +72,7 @@
 
 
 #include <vector> // used for storing paths
-#include <string>
-#include <map>
-#include <cmath>
-#include <string>
-#include <set>
-#include <queue>
-
+#include "GridInclude.H"
 class Grid
 {
 public: 
